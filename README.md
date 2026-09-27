@@ -104,6 +104,6 @@ The first page of the browse list (20 tracks, with artwork) is cached via [Hive]
 
 ## 5. APK
 
-Release APK: `build/app/outputs/flutter-apk/app-release.apk` (built from this repo via `flutter build apk --release`).
+Download: [`dist/choira-music.apk`](dist/choira-music.apk)
 
-<!-- TODO: add hosted download link after pushing to GitHub -->
+Built from this repo via `flutter build apk --release`. Installed and tested on a physical Android device (Android 15).
