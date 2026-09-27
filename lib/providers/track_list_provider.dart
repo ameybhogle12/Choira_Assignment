@@ -41,6 +41,12 @@ class TrackListProvider extends ChangeNotifier {
   String? _paginationError;
   String? get paginationError => _paginationError;
 
+  // Once a background page fails, further scroll-triggered loadMore() calls
+  // are paused until the user explicitly retries. Without this, a scroll
+  // listener can retrigger loadMore() faster than each failure resolves,
+  // firing a new SnackBar before the last one's animation even finishes.
+  bool _pausedAfterError = false;
+
   String _query = '';
   bool get isSearching => _query.isNotEmpty;
 
@@ -51,14 +57,21 @@ class TrackListProvider extends ChangeNotifier {
   Future<void> clearSearch() => loadInitial();
 
   Future<void> loadMore() async {
-    if (_isFetching || !_hasMore) return;
+    if (_isFetching || !_hasMore || _pausedAfterError) return;
     await _fetchPage();
+  }
+
+  /// Called from the pagination-error SnackBar's Retry action.
+  Future<void> retryAfterError() async {
+    _pausedAfterError = false;
+    await loadMore();
   }
 
   Future<void> _reset({required String query}) async {
     _query = query;
     _offset = 0;
     _hasMore = true;
+    _pausedAfterError = false;
     _tracks.clear();
     _status = TrackListStatus.loading;
     _errorMessage = null;
@@ -97,6 +110,7 @@ class TrackListProvider extends ChangeNotifier {
 
         // This is what the UI will use for the Snackbar.
         _paginationError = 'Failed to load more songs. Please try again.';
+        _pausedAfterError = true;
       }
     } finally {
       _isFetching = false;

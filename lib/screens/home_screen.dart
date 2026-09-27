@@ -110,20 +110,24 @@ class _HomeScreenState extends State<HomeScreen> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
 
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(paginationError),
-                  action: SnackBarAction(
-                    label: 'Retry',
-                    onPressed: () {
-                      listProvider.clearPaginationError();
-                      listProvider.loadMore();
-                    },
-                  ),
+            final messenger = ScaffoldMessenger.of(context);
+            messenger.clearSnackBars();
+            final controller = messenger.showSnackBar(
+              SnackBar(
+                content: Text(paginationError),
+                duration: const Duration(seconds: 4),
+                action: SnackBarAction(
+                  label: 'Retry',
+                  onPressed: () {
+                    listProvider.clearPaginationError();
+                    listProvider.retryAfterError();
+                  },
                 ),
-              );
+              ),
+            );
+            // Dismiss it ourselves rather than trusting SnackBar's own
+            // duration timer, which was observed to not reliably auto-hide.
+            Future.delayed(const Duration(seconds: 4), controller.close);
 
             listProvider.clearPaginationError();
           });
