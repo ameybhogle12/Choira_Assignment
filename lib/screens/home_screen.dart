@@ -1,10 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../providers/player_provider.dart';
-import '../providers/track_list_provider.dart';
+import '../blocs/playback/playback_bloc.dart';
+import '../blocs/playback/playback_event.dart';
+import '../blocs/playback/playback_state.dart';
+import '../blocs/track_list/track_list_bloc.dart';
+import '../blocs/track_list/track_list_event.dart';
+import '../blocs/track_list/track_list_state.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/track_tile.dart';
 
@@ -23,12 +27,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Deferred to after the first frame: calling loadInitial() synchronously
-    // here would run TrackListProvider's notifyListeners() while this widget
-    // tree is still being built, which Flutter rejects.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TrackListProvider>().loadInitial();
-    });
     _scrollController.addListener(_onScroll);
   }
 
@@ -45,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onScroll() {
     final position = _scrollController.position;
     if (position.pixels >= position.maxScrollExtent * 0.8) {
-      context.read<TrackListProvider>().loadMore();
+      context.read<TrackListBloc>().add(const TrackListLoadMoreRequested());
     }
   }
 
@@ -53,11 +51,11 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {}); // refresh the clear (x) button's visibility immediately
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 400), () {
-      final provider = context.read<TrackListProvider>();
+      final bloc = context.read<TrackListBloc>();
       if (value.trim().isEmpty) {
-        provider.clearSearch();
+        bloc.add(const TrackListLoadInitialRequested());
       } else {
-        provider.search(value);
+        bloc.add(TrackListSearchRequested(value));
       }
     });
   }
@@ -83,7 +81,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         onPressed: () {
                           _searchController.clear();
                           _debounce?.cancel();
-                          context.read<TrackListProvider>().clearSearch();
+                          context.read<TrackListBloc>().add(
+                            const TrackListLoadInitialRequested(),
+                          );
                           setState(() {});
                         },
                       ),
@@ -101,55 +101,54 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildList() {
-    return Consumer<TrackListProvider>(
-      builder: (context, listProvider, _) {
-        final tracks = listProvider.tracks;
-        final paginationError = listProvider.paginationError;
-
-        if (paginationError != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-
-            final messenger = ScaffoldMessenger.of(context);
-            messenger.clearSnackBars();
-            final controller = messenger.showSnackBar(
-              SnackBar(
-                content: Text(paginationError),
-                duration: const Duration(seconds: 4),
-                action: SnackBarAction(
-                  label: 'Retry',
-                  onPressed: () {
-                    listProvider.clearPaginationError();
-                    listProvider.retryAfterError();
-                  },
-                ),
+    // BlocConsumer = BlocListener (side effects, runs once per change) +
+    // BlocBuilder (draws UI). The listener replaces the Provider version's
+    // addPostFrameCallback + clearPaginationError() workaround.
+    return BlocConsumer<TrackListBloc, TrackListState>(
+      listenWhen: (previous, current) =>
+          current.paginationError != null &&
+          previous.paginationError != current.paginationError,
+      listener: (context, state) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.clearSnackBars();
+        final controller = messenger.showSnackBar(
+          SnackBar(
+            content: Text(state.paginationError!),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: () => context.read<TrackListBloc>().add(
+                const TrackListRetryRequested(),
               ),
-            );
-            // Dismiss it ourselves rather than trusting SnackBar's own
-            // duration timer, which was observed to not reliably auto-hide.
-            Future.delayed(const Duration(seconds: 4), controller.close);
+            ),
+          ),
+        );
+        // Dismiss it ourselves rather than trusting SnackBar's own
+        // duration timer, which was observed to not reliably auto-hide.
+        Future.delayed(const Duration(seconds: 4), controller.close);
+      },
+      builder: (context, listState) {
+        final tracks = listState.tracks;
 
-            listProvider.clearPaginationError();
-          });
-        }
-
-        if (listProvider.status == TrackListStatus.loading && tracks.isEmpty) {
+        if (listState.status == TrackListStatus.loading && tracks.isEmpty) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        if (listProvider.status == TrackListStatus.error && tracks.isEmpty) {
+        if (listState.status == TrackListStatus.error && tracks.isEmpty) {
           return _ErrorState(
-            message: listProvider.errorMessage ?? 'Something went wrong.',
-            onRetry: () => listProvider.isSearching
-                ? listProvider.search(_searchController.text)
-                : listProvider.loadInitial(),
+            message: listState.errorMessage ?? 'Something went wrong.',
+            onRetry: () => context.read<TrackListBloc>().add(
+              listState.isSearching
+                  ? TrackListSearchRequested(_searchController.text)
+                  : const TrackListLoadInitialRequested(),
+            ),
           );
         }
 
         if (tracks.isEmpty) {
           return Center(
             child: Text(
-              listProvider.isSearching
+              listState.isSearching
                   ? 'No tracks match your search.'
                   : 'No tracks available.',
               style: Theme.of(context).textTheme.bodyLarge,
@@ -157,11 +156,15 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        return Consumer<PlayerProvider>(
-          builder: (context, player, _) {
+        // buildWhen: only rebuild the list when the playing track changes -
+        // not on every position tick while a song plays.
+        return BlocBuilder<PlaybackBloc, PlaybackState>(
+          buildWhen: (previous, current) =>
+              previous.currentTrack?.id != current.currentTrack?.id,
+          builder: (context, playback) {
             return ListView.builder(
               controller: _scrollController,
-              itemCount: tracks.length + (listProvider.hasMore ? 1 : 0),
+              itemCount: tracks.length + (listState.hasMore ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index >= tracks.length) {
                   return const Padding(
@@ -172,8 +175,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 final track = tracks[index];
                 return TrackTile(
                   track: track,
-                  isPlaying: player.currentTrack?.id == track.id,
-                  onTap: () => player.playQueue(tracks, index),
+                  isPlaying: playback.currentTrack?.id == track.id,
+                  onTap: () => context.read<PlaybackBloc>().add(
+                    PlaybackQueueStarted(tracks, index),
+                  ),
                 );
               },
             );

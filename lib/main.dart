@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:provider/provider.dart';
 
-import 'providers/player_provider.dart';
-import 'providers/track_list_provider.dart';
+import 'blocs/playback/playback_bloc.dart';
+import 'blocs/track_list/track_list_bloc.dart';
+import 'blocs/track_list/track_list_event.dart';
 import 'repositories/track_repository.dart';
 import 'screens/home_screen.dart';
 
@@ -21,10 +22,15 @@ class ChoiraApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
+    return MultiBlocProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => TrackListProvider()),
-        ChangeNotifierProvider(create: (_) => PlayerProvider()),
+        // Events are processed asynchronously, so adding the first load here
+        // is safe - no addPostFrameCallback workaround needed like in Provider.
+        BlocProvider(
+          create: (_) =>
+              TrackListBloc()..add(const TrackListLoadInitialRequested()),
+        ),
+        BlocProvider(create: (_) => PlaybackBloc()),
       ],
       child: MaterialApp(
         title: 'Choira Music',

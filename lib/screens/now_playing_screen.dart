@@ -1,8 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../providers/player_provider.dart';
+import '../blocs/playback/playback_bloc.dart';
+import '../blocs/playback/playback_event.dart';
+import '../blocs/playback/playback_state.dart';
 import '../widgets/seek_bar.dart';
 
 class NowPlayingScreen extends StatelessWidget {
@@ -12,12 +14,13 @@ class NowPlayingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Now Playing')),
-      body: Consumer<PlayerProvider>(
-        builder: (context, player, _) {
-          final track = player.currentTrack;
+      body: BlocBuilder<PlaybackBloc, PlaybackState>(
+        builder: (context, playback) {
+          final track = playback.currentTrack;
           if (track == null) {
             return const Center(child: Text('Nothing is playing.'));
           }
+          final bloc = context.read<PlaybackBloc>();
 
           return Padding(
             padding: const EdgeInsets.all(24),
@@ -31,18 +34,18 @@ class NowPlayingScreen extends StatelessWidget {
                     height: 260,
                     child: track.imageUrl.isEmpty
                         ? Container(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
                             child: const Icon(Icons.music_note, size: 64),
                           )
                         : CachedNetworkImage(
                             imageUrl: track.imageUrl,
                             fit: BoxFit.cover,
                             errorWidget: (_, _, _) => Container(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
                               child: const Icon(Icons.music_note, size: 64),
                             ),
                           ),
@@ -62,20 +65,22 @@ class NowPlayingScreen extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyLarge,
                   textAlign: TextAlign.center,
                 ),
-                if (player.error != null) ...[
+                if (playback.error != null) ...[
                   const SizedBox(height: 16),
                   Text(
-                    player.error!,
+                    playback.error!,
                     style: TextStyle(
-                        color: Theme.of(context).colorScheme.error),
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],
                 const SizedBox(height: 24),
                 SeekBar(
-                  position: player.position,
-                  duration: player.duration,
-                  onSeek: player.seek,
+                  position: playback.position,
+                  duration: playback.duration,
+                  onSeek: (position) =>
+                      bloc.add(PlaybackSeekRequested(position)),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -84,20 +89,26 @@ class NowPlayingScreen extends StatelessWidget {
                     IconButton(
                       iconSize: 36,
                       icon: const Icon(Icons.skip_previous),
-                      onPressed: player.hasPrevious ? player.previous : null,
+                      onPressed: playback.hasPrevious
+                          ? () => bloc.add(const PlaybackPreviousRequested())
+                          : null,
                     ),
                     const SizedBox(width: 16),
                     IconButton.filled(
                       iconSize: 40,
                       icon: Icon(
-                          player.isPlaying ? Icons.pause : Icons.play_arrow),
-                      onPressed: player.togglePlayPause,
+                        playback.isPlaying ? Icons.pause : Icons.play_arrow,
+                      ),
+                      onPressed: () =>
+                          bloc.add(const PlaybackToggleRequested()),
                     ),
                     const SizedBox(width: 16),
                     IconButton(
                       iconSize: 36,
                       icon: const Icon(Icons.skip_next),
-                      onPressed: player.hasNext ? player.next : null,
+                      onPressed: playback.hasNext
+                          ? () => bloc.add(const PlaybackNextRequested())
+                          : null,
                     ),
                   ],
                 ),

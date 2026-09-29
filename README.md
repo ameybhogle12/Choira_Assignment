@@ -1,5 +1,7 @@
 # Choira Music
 
+> **`bloc-version` branch:** a learning port of the app from Provider to [flutter_bloc](https://pub.dev/packages/flutter_bloc), with identical features. State lives in `lib/blocs/` instead of `lib/providers/`; models, services, the repository and widgets are unchanged. The submitted version is on `master` and uses Provider — the architecture section below describes that version.
+
 A Flutter music player built against the [Jamendo Music API](https://developer.jamendo.com/v3.0) as a take-home assignment for Choira MusicTech.
 
 Browse and search a live music catalogue, see loading/error/empty states handled properly, scroll through paginated results without duplicate requests, and play tracks with a full transport (play/pause, next/previous, seek) and a persistent mini player.

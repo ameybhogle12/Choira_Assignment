@@ -1,8 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../providers/player_provider.dart';
+import '../blocs/playback/playback_bloc.dart';
+import '../blocs/playback/playback_event.dart';
+import '../blocs/playback/playback_state.dart';
 import '../screens/now_playing_screen.dart';
 
 /// Persistent bottom bar shown whenever a track is loaded. Tapping it opens
@@ -12,10 +14,11 @@ class MiniPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<PlayerProvider>(
-      builder: (context, player, _) {
-        final track = player.currentTrack;
+    return BlocBuilder<PlaybackBloc, PlaybackState>(
+      builder: (context, playback) {
+        final track = playback.currentTrack;
         if (track == null) return const SizedBox.shrink();
+        final bloc = context.read<PlaybackBloc>();
 
         return Material(
           elevation: 8,
@@ -50,11 +53,11 @@ class MiniPlayer extends StatelessWidget {
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         Text(
-                          player.error ?? track.artistName,
+                          playback.error ?? track.artistName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: player.error != null
+                            color: playback.error != null
                                 ? Theme.of(context).colorScheme.error
                                 : null,
                             fontSize: 12,
@@ -65,12 +68,15 @@ class MiniPlayer extends StatelessWidget {
                   ),
                   IconButton(
                     icon: Icon(
-                        player.isPlaying ? Icons.pause : Icons.play_arrow),
-                    onPressed: player.togglePlayPause,
+                      playback.isPlaying ? Icons.pause : Icons.play_arrow,
+                    ),
+                    onPressed: () => bloc.add(const PlaybackToggleRequested()),
                   ),
                   IconButton(
                     icon: const Icon(Icons.skip_next),
-                    onPressed: player.hasNext ? player.next : null,
+                    onPressed: playback.hasNext
+                        ? () => bloc.add(const PlaybackNextRequested())
+                        : null,
                   ),
                   const SizedBox(width: 4),
                 ],

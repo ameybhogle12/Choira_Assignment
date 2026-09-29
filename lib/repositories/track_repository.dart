@@ -3,7 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/track.dart';
 import '../services/jamendo_api.dart';
 
-/// Single point of contact for track data. Screens and providers only ever
+/// Single point of contact for track data. Screens and blocs only ever
 /// talk to this class, never to [JamendoApi] or [Hive] directly - so the
 /// data source (network, cache, a future second API) can change behind this
 /// one interface.
