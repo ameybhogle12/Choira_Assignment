@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/favorites_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/track_list_provider.dart';
 import '../widgets/mini_player.dart';
@@ -101,85 +102,102 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildList() {
-    return Consumer<TrackListProvider>(
-      builder: (context, listProvider, _) {
-        final tracks = listProvider.tracks;
-        final paginationError = listProvider.paginationError;
+    return RefreshIndicator(
+      onRefresh: () async {
+        final provider = context.read<TrackListProvider>();
+        if (provider.isSearching) {
+          provider.search(_searchController.text);
+        } else {
+          provider.loadInitial();
+        }
+      },
+      child: Consumer<TrackListProvider>(
+        builder: (context, listProvider, _) {
+          final tracks = listProvider.tracks;
+          final paginationError = listProvider.paginationError;
 
-        if (paginationError != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
+          if (paginationError != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
 
-            final messenger = ScaffoldMessenger.of(context);
-            messenger.clearSnackBars();
-            final controller = messenger.showSnackBar(
-              SnackBar(
-                content: Text(paginationError),
-                duration: const Duration(seconds: 4),
-                action: SnackBarAction(
-                  label: 'Retry',
-                  onPressed: () {
-                    listProvider.clearPaginationError();
-                    listProvider.retryAfterError();
-                  },
+              final messenger = ScaffoldMessenger.of(context);
+              messenger.clearSnackBars();
+              final controller = messenger.showSnackBar(
+                SnackBar(
+                  content: Text(paginationError),
+                  duration: const Duration(seconds: 4),
+                  action: SnackBarAction(
+                    label: 'Retry',
+                    onPressed: () {
+                      listProvider.clearPaginationError();
+                      listProvider.retryAfterError();
+                    },
+                  ),
                 ),
+              );
+              // Dismiss it ourselves rather than trusting SnackBar's own
+              // duration timer, which was observed to not reliably auto-hide.
+              Future.delayed(const Duration(seconds: 4), controller.close);
+
+              listProvider.clearPaginationError();
+            });
+          }
+
+          if (listProvider.status == TrackListStatus.loading &&
+              tracks.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (listProvider.status == TrackListStatus.error && tracks.isEmpty) {
+            return _ErrorState(
+              message: listProvider.errorMessage ?? 'Something went wrong.',
+              onRetry: () => listProvider.isSearching
+                  ? listProvider.search(_searchController.text)
+                  : listProvider.loadInitial(),
+            );
+          }
+
+          if (tracks.isEmpty) {
+            return Center(
+              child: Text(
+                listProvider.isSearching
+                    ? 'No tracks match your search.'
+                    : 'No tracks available.',
+                style: Theme.of(context).textTheme.bodyLarge,
               ),
             );
-            // Dismiss it ourselves rather than trusting SnackBar's own
-            // duration timer, which was observed to not reliably auto-hide.
-            Future.delayed(const Duration(seconds: 4), controller.close);
+          }
 
-            listProvider.clearPaginationError();
-          });
-        }
-
-        if (listProvider.status == TrackListStatus.loading && tracks.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (listProvider.status == TrackListStatus.error && tracks.isEmpty) {
-          return _ErrorState(
-            message: listProvider.errorMessage ?? 'Something went wrong.',
-            onRetry: () => listProvider.isSearching
-                ? listProvider.search(_searchController.text)
-                : listProvider.loadInitial(),
-          );
-        }
-
-        if (tracks.isEmpty) {
-          return Center(
-            child: Text(
-              listProvider.isSearching
-                  ? 'No tracks match your search.'
-                  : 'No tracks available.',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          );
-        }
-
-        return Consumer<PlayerProvider>(
-          builder: (context, player, _) {
-            return ListView.builder(
-              controller: _scrollController,
-              itemCount: tracks.length + (listProvider.hasMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index >= tracks.length) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Center(child: CircularProgressIndicator()),
+          return Consumer<PlayerProvider>(
+            builder: (context, player, _) {
+              return Consumer<FavoritesProvider>(
+                builder: (context, favorites, _) {
+                  return ListView.builder(
+                    controller: _scrollController,
+                    itemCount: tracks.length + (listProvider.hasMore ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index >= tracks.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      final track = tracks[index];
+                      return TrackTile(
+                        track: track,
+                        isPlaying: player.currentTrack?.id == track.id,
+                        isFavorite: favorites.isFavorite(track.id),
+                        onTap: () => player.playQueue(tracks, index),
+                        onFavoriteToggle: () => favorites.toggle(track),
+                      );
+                    },
                   );
-                }
-                final track = tracks[index];
-                return TrackTile(
-                  track: track,
-                  isPlaying: player.currentTrack?.id == track.id,
-                  onTap: () => player.playQueue(tracks, index),
-                );
-              },
-            );
-          },
-        );
-      },
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

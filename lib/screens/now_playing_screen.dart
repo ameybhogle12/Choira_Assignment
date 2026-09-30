@@ -31,18 +31,18 @@ class NowPlayingScreen extends StatelessWidget {
                     height: 260,
                     child: track.imageUrl.isEmpty
                         ? Container(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
                             child: const Icon(Icons.music_note, size: 64),
                           )
                         : CachedNetworkImage(
                             imageUrl: track.imageUrl,
                             fit: BoxFit.cover,
                             errorWidget: (_, _, _) => Container(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
                               child: const Icon(Icons.music_note, size: 64),
                             ),
                           ),
@@ -67,7 +67,8 @@ class NowPlayingScreen extends StatelessWidget {
                   Text(
                     player.error!,
                     style: TextStyle(
-                        color: Theme.of(context).colorScheme.error),
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -90,7 +91,8 @@ class NowPlayingScreen extends StatelessWidget {
                     IconButton.filled(
                       iconSize: 40,
                       icon: Icon(
-                          player.isPlaying ? Icons.pause : Icons.play_arrow),
+                        player.isPlaying ? Icons.pause : Icons.play_arrow,
+                      ),
                       onPressed: player.togglePlayPause,
                     ),
                     const SizedBox(width: 16),
@@ -98,6 +100,11 @@ class NowPlayingScreen extends StatelessWidget {
                       iconSize: 36,
                       icon: const Icon(Icons.skip_next),
                       onPressed: player.hasNext ? player.next : null,
+                    ),
+                    IconButton(
+                      iconSize: 36,
+                      icon: const Icon(Icons.shuffle),
+                      onPressed: player.playRandomSong,
                     ),
                   ],
                 ),

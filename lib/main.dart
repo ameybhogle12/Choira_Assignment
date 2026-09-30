@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
+import 'providers/favorites_provider.dart';
 import 'providers/player_provider.dart';
 import 'providers/track_list_provider.dart';
 import 'repositories/track_repository.dart';
@@ -13,6 +14,7 @@ Future<void> main() async {
   await dotenv.load(fileName: '.env');
   await Hive.initFlutter();
   await Hive.openBox(TrackRepository.cacheBoxName);
+  await Hive.openBox(FavoritesProvider.boxName);
   runApp(const ChoiraApp());
 }
 
@@ -25,6 +27,7 @@ class ChoiraApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => TrackListProvider()),
         ChangeNotifierProvider(create: (_) => PlayerProvider()),
+        ChangeNotifierProvider(create: (_) => FavoritesProvider()),
       ],
       child: MaterialApp(
         title: 'Choira Music',

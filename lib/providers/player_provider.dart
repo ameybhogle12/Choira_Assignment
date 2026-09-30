@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-
+import 'dart:math';
 import '../models/track.dart';
 
 /// Wraps a single [AudioPlayer] and exposes playback as plain state, so
@@ -25,8 +25,8 @@ class PlayerProvider extends ChangeNotifier {
 
   Track? get currentTrack =>
       (_currentIndex >= 0 && _currentIndex < _queue.length)
-          ? _queue[_currentIndex]
-          : null;
+      ? _queue[_currentIndex]
+      : null;
 
   bool get hasTrack => currentTrack != null;
   bool get isPlaying => _player.playing;
@@ -54,7 +54,8 @@ class PlayerProvider extends ChangeNotifier {
       await _player.setUrl(track.audioUrl);
       await _player.play();
     } catch (_) {
-      _error = 'Could not play "${track.name}" - the stream may be unavailable.';
+      _error =
+          'Could not play "${track.name}" - the stream may be unavailable.';
       notifyListeners();
     }
   }
@@ -77,6 +78,12 @@ class PlayerProvider extends ChangeNotifier {
   Future<void> previous() async {
     if (!hasPrevious) return;
     _currentIndex--;
+    await _playCurrent();
+  }
+
+  Future<void> playRandomSong() async {
+    if (_queue.isEmpty) return;
+    _currentIndex = Random().nextInt(_queue.length);
     await _playCurrent();
   }
 
